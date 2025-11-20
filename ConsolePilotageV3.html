@@ -1549,68 +1549,104 @@
                 });
             }
             
-            // Mettre à jour l'indicateur de places
+            // === ALERTE GLOBALE PLACES vs ÉLÈVES (Glance Value) ===
             const totalEleves = stats.effectifs.total;
             const placesEl = document.getElementById('metric-places');
             if (placesEl) {
                 const diff = totalPlaces - totalEleves;
-                let color = '#64748b';
-                let icon = '';
+                let color, bgColor, icon;
+
                 if (diff < 0) {
-                    color = 'var(--danger)';
+                    color = '#ef4444';
+                    bgColor = 'rgba(239, 68, 68, 0.1)';
                     icon = '⚠️ ';
-                } else if (diff === 0) {
-                    color = 'var(--success)';
+                } else if (diff < 5) {
+                    color = '#eab308';
+                    bgColor = 'rgba(234, 179, 8, 0.1)';
+                    icon = '⚠️ ';
+                } else {
+                    color = '#22c55e';
+                    bgColor = 'rgba(34, 197, 94, 0.1)';
                     icon = '✓ ';
                 }
-                placesEl.innerHTML = `<span style="color:${color}">${icon}${totalEleves} / ${totalPlaces} places</span>`;
+
+                placesEl.innerHTML = `
+                    <div style="background:${bgColor};padding:10px;border-radius:8px;border-left:3px solid ${color}">
+                        <div style="font-size:11px;color:#64748b;margin-bottom:4px;">🪑 PLACES vs ÉLÈVES</div>
+                        <div style="font-size:16px;font-weight:900;color:${color}">
+                            ${totalEleves} élèves / ${totalPlaces} places ${icon}${diff}
+                        </div>
+                    </div>`;
             }
 
-            // LV2 - Affichage avec compteur dégressif
+            // === DÉTECTION DES PROFILS DOUBLES (pour annotations) ===
+            const doublesInfo = {};
+            Object.entries(stats.combos).forEach(([combo, count]) => {
+                combo.split('+').map(p => p.trim()).forEach(part => {
+                    doublesInfo[part] = (doublesInfo[part] || 0) + count;
+                });
+            });
+
+            // === LV2 - Formule visible + annotation doubles (Scan Value) ===
             let lv2HTML = '';
             Object.entries(stats.lv2).forEach(([lv2, count]) => {
                 const quota = quotas.lv2[lv2] || 0;
                 const restant = quota - count;
-                const color = restant < 0 ? 'var(--danger)' : (restant === 0 ? 'var(--success)' : '#94a3b8');
+                const color = restant < 0 ? '#ef4444' : (restant === 0 ? '#22c55e' : '#94a3b8');
                 const icon = restant < 0 ? '⚠️ ' : (restant === 0 ? '✓ ' : '');
-                
+                const doubleNote = doublesInfo[lv2] ?
+                    `<span style="color:#64748b;font-size:10px;margin-left:4px">(${doublesInfo[lv2]} doubles)</span>` : '';
+
                 lv2HTML += `<tr>
-                    <td style="padding:4px;font-weight:600">${lv2}</td>
-                    <td style="text-align:right;font-size:11px;color:${color}">
-                        <span style="color:#64748b">${quota} - ${count} =</span> 
-                        <span style="font-weight:700;font-size:13px">${icon}${restant}</span>
+                    <td style="padding:4px 8px;font-weight:600">${lv2}</td>
+                    <td style="text-align:right;padding:4px 8px;font-size:12px">
+                        <span style="color:#64748b">${quota} − ${count} =</span>
+                        <span style="font-weight:700;font-size:14px;color:${color};margin-left:4px">${icon}${restant}</span>
+                        ${doubleNote}
                     </td>
                 </tr>`;
             });
             document.getElementById('quota-lv2').innerHTML = lv2HTML || '<tr><td style="color:#64748b">Aucune</td></tr>';
 
-            // OPTIONS - Affichage avec compteur dégressif
+            // === OPTIONS - Formule visible + annotation doubles (Scan Value) ===
             let optHTML = '';
             Object.entries(stats.options).forEach(([opt, count]) => {
                 const quota = quotas.options[opt] || 0;
                 const restant = quota - count;
-                const color = restant < 0 ? 'var(--danger)' : (restant === 0 ? 'var(--success)' : '#94a3b8');
+                const color = restant < 0 ? '#ef4444' : (restant === 0 ? '#22c55e' : '#94a3b8');
                 const icon = restant < 0 ? '⚠️ ' : (restant === 0 ? '✓ ' : '');
-                
+                const doubleNote = doublesInfo[opt] ?
+                    `<span style="color:#64748b;font-size:10px;margin-left:4px">(${doublesInfo[opt]} doubles)</span>` : '';
+
                 optHTML += `<tr>
-                    <td style="padding:4px;font-weight:600">${opt}</td>
-                    <td style="text-align:right;font-size:11px;color:${color}">
-                        <span style="color:#64748b">${quota} - ${count} =</span> 
-                        <span style="font-weight:700;font-size:13px">${icon}${restant}</span>
+                    <td style="padding:4px 8px;font-weight:600">${opt}</td>
+                    <td style="text-align:right;padding:4px 8px;font-size:12px">
+                        <span style="color:#64748b">${quota} − ${count} =</span>
+                        <span style="font-weight:700;font-size:14px;color:${color};margin-left:4px">${icon}${restant}</span>
+                        ${doubleNote}
                     </td>
                 </tr>`;
             });
             document.getElementById('quota-options').innerHTML = optHTML || '<tr><td style="color:#64748b">Aucune</td></tr>';
 
-            // PROFILS DOUBLES (pas de quota, affichage simple)
+            // === PROFILS DOUBLES - Section dédiée avec clarification (Focus Value) ===
             let comboHTML = '';
-            Object.entries(stats.combos).forEach(([combo, count]) => {
+            if (Object.keys(stats.combos).length > 0) {
+                Object.entries(stats.combos).forEach(([combo, count]) => {
+                    comboHTML += `<tr>
+                        <td style="padding:4px 8px;font-weight:600;color:#eab308">${combo}</td>
+                        <td style="text-align:right;padding:4px 8px;font-weight:700;color:#eab308">${count} élèves</td>
+                    </tr>`;
+                });
                 comboHTML += `<tr>
-                    <td style="padding:4px;font-weight:600;color:#eab308">${combo}</td>
-                    <td style="text-align:right;font-weight:700">${count}</td>
+                    <td colspan="2" style="padding:8px;font-size:10px;color:#64748b;border-top:1px solid #334155">
+                        ℹ️ Comptés dans LV2 <b>ET</b> OPTIONS ci-dessus
+                    </td>
                 </tr>`;
-            });
-            document.getElementById('quota-combos').innerHTML = comboHTML || '<tr><td style="color:#64748b">Aucun</td></tr>';
+            } else {
+                comboHTML = '<tr><td colspan="2" style="color:#64748b;padding:8px">Aucun profil double</td></tr>';
+            }
+            document.getElementById('quota-combos').innerHTML = comboHTML;
 
             // ASSO
             document.getElementById('quota-asso').innerHTML = 
