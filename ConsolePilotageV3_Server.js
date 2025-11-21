@@ -153,7 +153,7 @@ function v3_runInitializationWithForm(formData) {
     const config = getConfig();
 
     // 1. Vérifier le mot de passe (cherche d'abord ADMIN_PASSWORD, sinon ADMIN_PASSWORD_DEFAULT)
-    const expectedPassword = config.ADMIN_PASSWORD || CONFIG.ADMIN_PASSWORD_DEFAULT || "admin123";
+    const expectedPassword = config.ADMIN_PASSWORD || config.ADMIN_PASSWORD_DEFAULT || "admin123";
     if (formData.adminPassword !== expectedPassword) {
       return {
         success: false,
@@ -870,6 +870,85 @@ function v3_loadProgress() {
     
   } catch (e) {
     Logger.log(`Erreur v3_loadProgress: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * ===================================================================
+ * GESTION DE SESSION (STATUS / LOAD / RESET)
+ * ===================================================================
+ */
+
+/**
+ * Retourne l'état de la session sauvegardée pour la console V3.
+ * Permet au frontend de savoir si une reprise est possible.
+ */
+function v3_getSessionStatus() {
+  try {
+    const progress = v3_loadProgress();
+    const hasBackup = Boolean(progress && progress.success && !progress.firstTime);
+
+    return {
+      success: true,
+      hasBackup: hasBackup,
+      progress: progress.success ? progress : null
+    };
+  } catch (e) {
+    Logger.log(`Erreur v3_getSessionStatus: ${e.message}`);
+    return { success: false, hasBackup: false, error: e.message };
+  }
+}
+
+/**
+ * Charge la session sauvegardée : configuration + progression.
+ */
+function v3_loadSessionState() {
+  try {
+    const config = v3_loadConfigForForm();
+    const progress = v3_loadProgress();
+
+    if (!config || config.success === false) {
+      throw new Error(config && config.error ? config.error : "Configuration introuvable");
+    }
+
+    return {
+      success: true,
+      config: config,
+      progress: progress && progress.success ? progress : null
+    };
+  } catch (e) {
+    Logger.log(`Erreur v3_loadSessionState: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Réinitialise la session en supprimant la progression stockée.
+ */
+function v3_resetSessionState() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const configSheet = ss.getSheetByName('_CONFIG');
+
+    if (!configSheet) {
+      throw new Error("Onglet _CONFIG introuvable");
+    }
+
+    const data = configSheet.getDataRange().getValues();
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][0] === 'PROGRESS') {
+        configSheet.getRange(i + 1, 2).clearContent();
+        CacheService.getScriptCache().remove("v3_config_form");
+        return { success: true, reset: true };
+      }
+    }
+
+    // Si aucune ligne PROGRESS trouvée, on considère le reset comme réussi
+    CacheService.getScriptCache().remove("v3_config_form");
+    return { success: true, reset: true };
+  } catch (e) {
+    Logger.log(`Erreur v3_resetSessionState: ${e.message}`);
     return { success: false, error: e.message };
   }
 }
