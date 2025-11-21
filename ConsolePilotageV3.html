@@ -1321,6 +1321,16 @@
 
             console.log("📋 Config chargée:", payload);
 
+            // 🔍 DEBUG: Afficher chaque valeur individuellement
+            console.log("🔍 DÉTAILS Config:");
+            console.log("  - adminPassword:", payload.adminPassword);
+            console.log("  - niveau:", payload.niveau);
+            console.log("  - nbSources:", payload.nbSources);
+            console.log("  - nbDest:", payload.nbDest);
+            console.log("  - lv2:", payload.lv2);
+            console.log("  - opt:", payload.opt);
+            console.log("  - dispo:", payload.dispo);
+
             if (payload.adminPassword) document.getElementById('pwd').value = payload.adminPassword;
             if (payload.niveau) document.getElementById('niv').value = payload.niveau;
             if (payload.nbSources) document.getElementById('src').value = payload.nbSources;
@@ -1328,6 +1338,8 @@
             if (payload.lv2) document.getElementById('lv2').value = payload.lv2;
             if (payload.opt) document.getElementById('opt').value = payload.opt;
             if (payload.dispo) document.getElementById('dispo').value = payload.dispo;
+
+            console.log("✅ Valeurs chargées dans le formulaire");
         }
         
         // === SYSTÈME DE SAUVEGARDE AUTOMATIQUE ===

@@ -925,29 +925,14 @@ function protegerFeuille(sheet, description, warningOnly = false) {
         }
       }
     }
-     Logger.log(`Protection (${warningOnly ? 'Avert.' : 'Complète'}) appliquée: ${sheet.getName()}`);
-  } catch(e) { Logger.log(`Erreur protection ${sheet.getName()}: ${e}`);}
+    Logger.log(`Protection (${warningOnly ? 'Avert.' : 'Complète'}) appliquée: ${sheet.getName()}`);
+  } catch(e) { 
+    Logger.log(`Erreur protection ${sheet.getName()}: ${e}`);
+  }
 }
 
-/**
- * Met à jour un paramètre de configuration
- * @param {string} param - Le paramètre à mettre à jour
- * @param {any} value - La nouvelle valeur
- */
-function updateConfig(param, value) {
-    try {
-        const configSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEETS.CONFIG || "_CONFIG");
-        if (!configSheet) return;
-        const data = configSheet.getDataRange().getValues();
-        for (let i=1; i<data.length; i++) {
-            if (data[i][0] === param) {
-                configSheet.getRange(i+1, 2).setValue(value);
-                return;
-            }
-        }
-         Logger.log(`updateConfig: Paramètre ${param} non trouvé pour mise à jour.`);
-    } catch(e) { Logger.log(`Erreur updateConfig simple: ${e}`);}
-}
+// Note: La fonction updateConfig() est définie dans Config.js
+// Cette version dupliquée a été supprimée pour éviter les conflits
 
 /**
  * Ajoute la formule NOM_PRENOM et ID_ELEVE

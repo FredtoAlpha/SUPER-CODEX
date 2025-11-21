@@ -346,12 +346,27 @@ function getConfig() {
           const paramIndex = headers.indexOf("PARAMETRE");
           const valueIndex = headers.indexOf("VALEUR");
 
+          // 🔍 DEBUG: Compter les lignes totales et afficher les 10 premières
+          Logger.log(`📊 Total de lignes dans _CONFIG: ${data.length - headerRowIndex - 1}`);
+          
           for (let i = headerRowIndex + 1; i < data.length; i++) { 
             const paramKeyRaw = String(data[i][paramIndex] || '').trim();
             const paramKeyUpper = paramKeyRaw.toUpperCase(); 
             let value = data[i][valueIndex];
 
-            if (!paramKeyRaw) continue; 
+            // 🔍 DEBUG: Afficher les 10 premières lignes pour diagnostic
+            if (i <= headerRowIndex + 10) {
+              Logger.log(`🔍 _CONFIG ligne ${i+1}: param="${paramKeyRaw}" (upper: "${paramKeyUpper}") | valeur="${value}"`);
+            }
+
+            Logger.log(`🔍 _CONFIG ligne ${i+1}: param="${paramKeyRaw}" (upper: "${paramKeyUpper}") | valeur="${value}"`);
+
+            if (!paramKeyRaw) continue;
+            
+            // 🔍 DEBUG: Tracer spécifiquement NB_SOURCES et NB_DEST
+            if (paramKeyUpper === "NB_SOURCES" || paramKeyUpper === "NB_DEST") {
+              Logger.log(`✨ TROUVÉ ligne ${i+1}: param="${paramKeyRaw}" | valeur BRUTE="${value}" | type=${typeof value}`);
+            } 
 
             if (typeof value === 'string') {
                 const valueLower = value.toLowerCase().trim();

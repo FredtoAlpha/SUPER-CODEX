@@ -30,6 +30,15 @@ function v3_loadConfigForForm() {
 
   try {
     const config = getConfig();
+    
+    // 🔍 DEBUG: Logs détaillés pour comprendre le problème
+    Logger.log("🔍 DEBUG v3_loadConfigForForm:");
+    Logger.log("  - config.NIVEAU = " + JSON.stringify(config.NIVEAU));
+    Logger.log("  - config.NB_SOURCES = " + JSON.stringify(config.NB_SOURCES));
+    Logger.log("  - config.NB_DEST = " + JSON.stringify(config.NB_DEST));
+    Logger.log("  - config.ADMIN_PASSWORD = " + (config.ADMIN_PASSWORD ? "[présent]" : "[absent]"));
+    Logger.log("  - config.LV2_OPTIONS = " + JSON.stringify(config.LV2_OPTIONS));
+    
     // Tenter de récupérer nbSources/Dest depuis CONFIG si stocké, sinon valeurs par défaut
     // Note: Ces valeurs ne sont pas toujours stockées explicitement dans _CONFIG standard
 
@@ -49,6 +58,11 @@ function v3_loadConfigForForm() {
       opt: optArray.join(', '),
       dispo: config.DISPOSITIFS ? config.DISPOSITIFS.join(', ') : "PAI, PPRE, ULIS, UPE2A"
     };
+    
+    Logger.log("📦 RESULT v3_loadConfigForForm:");
+    Logger.log("  - result.niveau = " + JSON.stringify(result.niveau));
+    Logger.log("  - result.nbSources = " + JSON.stringify(result.nbSources));
+    Logger.log("  - result.nbDest = " + JSON.stringify(result.nbDest));
 
     // Mettre en cache pour 10 minutes (600 secondes)
     cache.put("v3_config_form", JSON.stringify(result), 600);
@@ -905,6 +919,10 @@ function v3_getSessionStatus() {
  */
 function v3_loadSessionState() {
   try {
+    // Invalider le cache pour forcer une relecture fraîche depuis _CONFIG
+    CacheService.getScriptCache().remove("v3_config_form");
+    Logger.log("📥 v3_loadSessionState: Cache invalidé pour relecture fraîche");
+    
     const config = v3_loadConfigForForm();
     const progress = v3_loadProgress();
 
