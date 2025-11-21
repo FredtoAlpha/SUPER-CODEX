@@ -478,6 +478,25 @@
             display: flex;
         }
 
+        .welcome-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10001;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s;
+        }
+
+        .welcome-overlay.show {
+            display: flex;
+        }
+
         .modal {
             background: var(--card);
             border-radius: 20px;
@@ -779,6 +798,24 @@
             <h2 id="modal-title" class="modal-title"></h2>
             <p id="modal-message" class="modal-message"></p>
             <div id="modal-buttons" class="modal-buttons"></div>
+        </div>
+    </div>
+
+    <!-- MODALE DE BIENVENUE BLOQUANTE -->
+    <div id="welcome-overlay" class="welcome-overlay">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-icon info"><i class="fas fa-hand-sparkles"></i></div>
+            <h2 class="modal-title">Bienvenue dans le Pilotage V3</h2>
+            <p class="modal-message">Choisissez comment démarrer : reprendre une session existante ou repartir de zéro.</p>
+            <div class="modal-buttons" style="gap: 10px;">
+                <button id="btn-resume-session" class="modal-btn modal-btn-primary" onclick="handleResumeSession()" style="display:none;">
+                    <i class="fas fa-history"></i> REPRENDRE LA SESSION
+                </button>
+                <button id="btn-new-config" class="modal-btn modal-btn-secondary" onclick="handleNewConfiguration()">
+                    <i class="fas fa-plus-circle"></i> NOUVELLE CONFIGURATION
+                </button>
+            </div>
+            <div id="welcome-status" style="text-align:center;color:#94a3b8;margin-top:10px;font-size:13px;"></div>
         </div>
     </div>
 
@@ -1115,58 +1152,182 @@
 
         // Variable globale pour stocker la structure en cours d'édition
         let currentStructure = null;
+        let lastKnownProgress = null;
+
+        const sessionRoutes = {
+            status: '/pilotageV3/session/status',
+            load: '/pilotageV3/session/load',
+            reset: '/pilotageV3/session/reset'
+        };
+
+        const sessionFunctionMap = {
+            [sessionRoutes.status]: 'v3_getSessionStatus',
+            [sessionRoutes.load]: 'v3_loadSessionState',
+            [sessionRoutes.reset]: 'v3_resetSessionState'
+        };
 
         // ===================================================================
         // INITIALISATION AU CHARGEMENT
         // ===================================================================
         window.onload = function() {
             console.log("🚀 Console Pilotage V3 chargée");
-            
-            // Charger la progression sauvegardée ET la configuration
-            runServerCall('v3_loadProgress', [],
-                progress => {
-                    console.log("📦 Progression chargée:", progress);
-                    
-                    // Charger aussi la config
-                    runServerCall('v3_loadConfigForForm', [],
-                        config => {
-                            loadConfigIntoForm(config);
-                            
-                            // Si une progression existe, repositionner sur la bonne phase
-                            if (progress && progress.success && progress.phase && !progress.firstTime) {
-                                const phaseName = ['CONFIG', 'INIT', 'CONSO', 'STATS', 'STRUCTURE', 'ENGINE', 'FINAL'][progress.phase - 1];
-                                showToast(`🔄 Reprise Phase ${progress.phase}: ${phaseName}`, 'info');
-                                setTimeout(() => goTo(progress.phase), 1000);
-                            } else {
-                                showToast("✨ Première utilisation - Commencez par la Phase 1", 'info');
-                            }
-                        },
-                        err => console.error("Erreur chargement config:", err)
-                    );
-                },
-                err => {
-                    console.error("Erreur chargement progression:", err);
-                    // Charger quand même la config
-                    runServerCall('v3_loadConfigForForm', [],
-                        loadConfigIntoForm,
-                        err => console.error("Erreur chargement config:", err)
-                    );
-                }
-            );
+            initializeWelcomeFlow();
         };
 
+        async function initializeWelcomeFlow() {
+            toggleWelcomeModal(true);
+            setWelcomeLoading(true, "Vérification de la session en cours...");
+
+            const status = await getSessionStatus();
+            document.getElementById('btn-resume-session').style.display = status.hasBackup ? 'flex' : 'none';
+
+            if (!status.hasBackup && status.error) {
+                setWelcomeLoading(false, "Reprise indisponible. Nouvelle configuration par défaut.");
+                showToast("Pas de statut de session : lancement en nouvelle configuration.", 'warning');
+            } else {
+                setWelcomeLoading(false, "");
+            }
+        }
+
+        function toggleWelcomeModal(show) {
+            const overlay = document.getElementById('welcome-overlay');
+            if (!overlay) return;
+            if (show) {
+                overlay.classList.add('show');
+            } else {
+                overlay.classList.remove('show');
+            }
+        }
+
+        function setWelcomeLoading(isLoading, message = '') {
+            const resumeBtn = document.getElementById('btn-resume-session');
+            const newBtn = document.getElementById('btn-new-config');
+            const statusEl = document.getElementById('welcome-status');
+
+            if (statusEl) statusEl.textContent = message;
+            if (resumeBtn) resumeBtn.disabled = isLoading;
+            if (newBtn) newBtn.disabled = isLoading;
+        }
+
+        async function getSessionStatus() {
+            const result = { hasBackup: false, error: false };
+            try {
+                const data = await callSessionEndpoint(sessionRoutes.status, { method: 'GET' });
+                lastKnownProgress = data?.progress || null;
+                result.hasBackup = Boolean(data?.hasBackup || data?.hasSave || data?.available || data?.success);
+            } catch (err) {
+                console.error('Erreur statut session:', err);
+                result.error = true;
+            }
+            return result;
+        }
+
+        async function handleResumeSession() {
+            setWelcomeLoading(true, "Chargement de la session sauvegardée...");
+            try {
+                const data = await callSessionEndpoint(sessionRoutes.load, { method: 'GET' });
+                if (!data || data.success === false) {
+                    throw new Error(data?.error || 'Impossible de reprendre la session.');
+                }
+
+                const configToLoad = data.config || data.form || data;
+                loadConfigIntoForm(configToLoad);
+
+                lastKnownProgress = data.progress || data.progression || lastKnownProgress;
+                const targetPhase = (lastKnownProgress && lastKnownProgress.phase) ? lastKnownProgress.phase : 1;
+
+                toggleWelcomeModal(false);
+                showToast('Session reprise avec succès.', 'success');
+                goTo(targetPhase);
+            } catch (err) {
+                console.error('Erreur reprise session:', err);
+                setWelcomeLoading(false, err.message || 'Erreur lors du chargement.');
+                showModal(err.message || 'Erreur lors du chargement de la session.', 'error');
+                document.getElementById('btn-resume-session').style.display = 'none';
+            }
+        }
+
+        async function handleNewConfiguration() {
+            setWelcomeLoading(true, "Réinitialisation en cours...");
+            try {
+                const data = await callSessionEndpoint(sessionRoutes.reset, { method: 'POST' });
+                if (data && data.success === false) {
+                    throw new Error(data.error || 'Impossible de réinitialiser la session.');
+                }
+
+                clearPhaseOneForm();
+                lastKnownProgress = null;
+                currentStructure = null;
+
+                toggleWelcomeModal(false);
+                goTo(1);
+                showToast('Nouvelle configuration prête.', 'info');
+            } catch (err) {
+                console.error('Erreur nouvelle configuration:', err);
+                setWelcomeLoading(false, err.message || 'Erreur lors de la réinitialisation.');
+                showModal(err.message || 'Impossible de réinitialiser.', 'error');
+            }
+        }
+
+        async function callSessionEndpoint(url, options = {}) {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                const functionName = sessionFunctionMap[url];
+
+                if (!functionName) {
+                    throw new Error('Session endpoint non disponible.');
+                }
+
+                return new Promise((resolve, reject) => {
+                    google.script.run
+                        .withSuccessHandler(resolve)
+                        .withFailureHandler(err => reject(new Error(err && err.message ? err.message : err)))
+                        [functionName]();
+                });
+            }
+
+            const response = await fetch(url, {
+                headers: { 'Content-Type': 'application/json' },
+                ...options
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            try {
+                return await response.json();
+            } catch (err) {
+                console.warn('Réponse sans JSON structuré:', err);
+                return {};
+            }
+        }
+
+        function clearPhaseOneForm() {
+            const fieldIds = ['pwd', 'src', 'dest', 'lv2', 'opt', 'dispo'];
+            fieldIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+
+            const niv = document.getElementById('niv');
+            if (niv) niv.selectedIndex = 0;
+        }
+
         function loadConfigIntoForm(config) {
-        if (!config || !config.success) return;
+            if (!config) return;
 
-        console.log("📋 Config chargée:", config);
+            const payload = config.config && !config.adminPassword ? config.config : config;
+            if (payload.success === false) return;
 
-        if (config.adminPassword) document.getElementById('pwd').value = config.adminPassword;
-        if (config.niveau) document.getElementById('niv').value = config.niveau;
-        if (config.nbSources) document.getElementById('src').value = config.nbSources;
-        if (config.nbDest) document.getElementById('dest').value = config.nbDest;
-        if (config.lv2) document.getElementById('lv2').value = config.lv2;
-        if (config.opt) document.getElementById('opt').value = config.opt;
-        if (config.dispo) document.getElementById('dispo').value = config.dispo;
+            console.log("📋 Config chargée:", payload);
+
+            if (payload.adminPassword) document.getElementById('pwd').value = payload.adminPassword;
+            if (payload.niveau) document.getElementById('niv').value = payload.niveau;
+            if (payload.nbSources) document.getElementById('src').value = payload.nbSources;
+            if (payload.nbDest) document.getElementById('dest').value = payload.nbDest;
+            if (payload.lv2) document.getElementById('lv2').value = payload.lv2;
+            if (payload.opt) document.getElementById('opt').value = payload.opt;
+            if (payload.dispo) document.getElementById('dispo').value = payload.dispo;
         }
         
         // === SYSTÈME DE SAUVEGARDE AUTOMATIQUE ===
