@@ -25,7 +25,7 @@
             margin: 0;
             height: 100vh;
             display: grid;
-            grid-template-columns: 280px 1fr 300px;
+            grid-template-columns: 280px 1fr 400px;
             overflow: hidden;
             font-size: 16px;
         }
@@ -599,7 +599,7 @@
         @media screen and (max-width: 1600px) {
             body {
                 font-size: 13px;
-                grid-template-columns: 180px 1fr 200px;
+                grid-template-columns: 180px 1fr 280px;
             }
 
             /* Colonnes réduites */
@@ -1060,7 +1060,7 @@
             <div style="font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 10px;">
                 🌍 LV2 SEULES
             </div>
-            <table id="quota-lv2" style="width: 100%; font-size: 13px; color: #94a3b8;">
+            <table id="quota-lv2" style="width: 100%; font-size: 11px; color: #94a3b8; table-layout: fixed;">
                 <tr><td>Chargement...</td></tr>
             </table>
         </div>
@@ -1070,7 +1070,7 @@
             <div style="font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 10px;">
                 🎯 OPTIONS SEULES
             </div>
-            <table id="quota-options" style="width: 100%; font-size: 13px; color: #94a3b8;">
+            <table id="quota-options" style="width: 100%; font-size: 11px; color: #94a3b8; table-layout: fixed;">
                 <tr><td>Chargement...</td></tr>
             </table>
         </div>
@@ -1080,7 +1080,7 @@
             <div style="font-size: 12px; font-weight: 700; color: var(--warning); margin-bottom: 10px;">
                 ⚡ PROFILS DOUBLES
             </div>
-            <table id="quota-combos" style="width: 100%; font-size: 13px; color: #94a3b8;">
+            <table id="quota-combos" style="width: 100%; font-size: 11px; color: #94a3b8; table-layout: fixed;">
                 <tr><td>Chargement...</td></tr>
             </table>
         </div>
@@ -1579,51 +1579,80 @@
                     </div>`;
             }
 
-            // === DÉTECTION DES PROFILS DOUBLES (pour annotations) ===
-            const doublesInfo = {};
+            // === ANALYSE INTELLIGENTE DES DOUBLES CONTRAINTES ===
+            // Construire une carte : pour chaque LV2/OPT, qui a aussi quoi d'autre ?
+            const relations = {}; // {ITA: {LATIN: 8}, LATIN: {ITA: 8, ESP: 15}, ...}
+            
             Object.entries(stats.combos).forEach(([combo, count]) => {
-                combo.split('+').map(p => p.trim()).forEach(part => {
-                    doublesInfo[part] = (doublesInfo[part] || 0) + count;
+                const parts = combo.split('+').map(p => p.trim());
+                // Pour chaque élément du combo, noter ses partenaires
+                parts.forEach((item, i) => {
+                    if (!relations[item]) relations[item] = {};
+                    parts.forEach((partner, j) => {
+                        if (i !== j) {
+                            relations[item][partner] = (relations[item][partner] || 0) + count;
+                        }
+                    });
                 });
             });
 
-            // === LV2 - Formule visible + annotation doubles (Scan Value) ===
+            // === LV2 - Affichage intelligent (Scan Value) ===
             let lv2HTML = '';
             Object.entries(stats.lv2).forEach(([lv2, count]) => {
                 const quota = quotas.lv2[lv2] || 0;
                 const restant = quota - count;
                 const color = restant < 0 ? '#ef4444' : (restant === 0 ? '#22c55e' : '#94a3b8');
                 const icon = restant < 0 ? '⚠️ ' : (restant === 0 ? '✓ ' : '');
-                const doubleNote = doublesInfo[lv2] ?
-                    `<span style="color:#64748b;font-size:10px;margin-left:4px">(${doublesInfo[lv2]} doubles)</span>` : '';
+                
+                // Générer l'annotation intelligente "dont X avec Y"
+                let annotation = '';
+                if (relations[lv2]) {
+                    const dontParts = Object.entries(relations[lv2])
+                        .map(([partner, nb]) => `${nb} ${partner}`)
+                        .join(', ');
+                    annotation = `<div style="font-size:9px;color:#64748b;margin-top:2px">dont ${dontParts}</div>`;
+                }
 
                 lv2HTML += `<tr>
                     <td style="padding:4px 8px;font-weight:600">${lv2}</td>
-                    <td style="text-align:right;padding:4px 8px;font-size:12px">
-                        <span style="color:#64748b">${quota} − ${count} =</span>
-                        <span style="font-weight:700;font-size:14px;color:${color};margin-left:4px">${icon}${restant}</span>
-                        ${doubleNote}
+                    <td style="text-align:right;padding:4px 8px;font-size:11px">
+                        <div style="color:#94a3b8;font-weight:600">${count} élèves</div>
+                        ${annotation}
+                        <div style="margin-top:4px">
+                            <span style="color:#64748b">${quota} − ${count} =</span>
+                            <span style="font-weight:700;font-size:13px;color:${color};margin-left:4px">${icon}${restant}</span>
+                        </div>
                     </td>
                 </tr>`;
             });
             document.getElementById('quota-lv2').innerHTML = lv2HTML || '<tr><td style="color:#64748b">Aucune</td></tr>';
 
-            // === OPTIONS - Formule visible + annotation doubles (Scan Value) ===
+            // === OPTIONS - Affichage intelligent (Scan Value) ===
             let optHTML = '';
             Object.entries(stats.options).forEach(([opt, count]) => {
                 const quota = quotas.options[opt] || 0;
                 const restant = quota - count;
                 const color = restant < 0 ? '#ef4444' : (restant === 0 ? '#22c55e' : '#94a3b8');
                 const icon = restant < 0 ? '⚠️ ' : (restant === 0 ? '✓ ' : '');
-                const doubleNote = doublesInfo[opt] ?
-                    `<span style="color:#64748b;font-size:10px;margin-left:4px">(${doublesInfo[opt]} doubles)</span>` : '';
+                
+                // Générer l'annotation intelligente "dont X avec Y"
+                let annotation = '';
+                if (relations[opt]) {
+                    const dontParts = Object.entries(relations[opt])
+                        .map(([partner, nb]) => `${nb} ${partner}`)
+                        .join(', ');
+                    annotation = `<div style="font-size:9px;color:#64748b;margin-top:2px">dont ${dontParts}</div>`;
+                }
 
                 optHTML += `<tr>
                     <td style="padding:4px 8px;font-weight:600">${opt}</td>
-                    <td style="text-align:right;padding:4px 8px;font-size:12px">
-                        <span style="color:#64748b">${quota} − ${count} =</span>
-                        <span style="font-weight:700;font-size:14px;color:${color};margin-left:4px">${icon}${restant}</span>
-                        ${doubleNote}
+                    <td style="text-align:right;padding:4px 8px;font-size:11px">
+                        <div style="color:#94a3b8;font-weight:600">${count} élèves</div>
+                        ${annotation}
+                        <div style="margin-top:4px">
+                            <span style="color:#64748b">${quota} − ${count} =</span>
+                            <span style="font-weight:700;font-size:13px;color:${color};margin-left:4px">${icon}${restant}</span>
+                        </div>
                     </td>
                 </tr>`;
             });
@@ -1732,32 +1761,105 @@
                 tbody.appendChild(tr);
             });
 
-            // 3. LIGNE DE TOTAUX avec compteurs colorés
+            // 3. LIGNE DE TOTAUX - SOMME des quotas du tableau
             const totalsRow = document.createElement('tr');
+            totalsRow.id = 'totals-row';
             totalsRow.style.borderTop = '3px solid #475569';
             totalsRow.style.background = '#0f172a';
             totalsRow.style.fontWeight = '900';
             
+            // Construire la ligne HTML directement
             let totalsHTML = '<td style="color:#64748b;text-align:right;padding:12px 8px;">TOTAUX:</td>';
-            totalsHTML += '<td></td>'; // Pas de total pour capacité
             
-            // Calculer les totaux pour chaque LV2/Option
+            // Capacité totale
+            const totalCapacity = data.classes.reduce((sum, cls) => sum + (parseInt(cls.capacity) || 0), 0);
+            totalsHTML += `<td style="text-align:center;padding:12px 8px;color:#22c55e;font-size:15px;font-weight:900;">${totalCapacity}</td>`;
+            
+            // Somme pour chaque LV2/Option
             [...data.lv2, ...data.options].forEach(key => {
                 const total = data.classes.reduce((sum, cls) => sum + (parseInt(cls.quotas[key]) || 0), 0);
-                
-                // Couleur selon le total
-                let color = '#94a3b8'; // Gris par défaut
-                if (total > 0) {
-                    color = '#22c55e'; // Vert si configuré
-                }
-                
-                totalsHTML += `<td style="text-align:center;padding:12px 8px;color:${color};font-size:16px;">${total}</td>`;
+                const color = total > 0 ? '#22c55e' : '#94a3b8';
+                totalsHTML += `<td style="text-align:center;padding:12px 8px;color:${color};font-size:15px;font-weight:900;">${total}</td>`;
             });
             
             totalsRow.innerHTML = totalsHTML;
             tbody.appendChild(totalsRow);
-
-            updateTotalCapacity();
+        }
+        
+        // Fonction pour mettre à jour la ligne de totaux avec les compteurs élèves vs quotas
+        function updateTotalsRow(data) {
+            const totalsRow = document.getElementById('totals-row');
+            if (!totalsRow) return;
+            
+            // Récupérer les stats pour avoir le nombre d'élèves par LV2/Option
+            runServerCall('v3_getStats', [],
+                stats => {
+                    if (!stats.success) {
+                        console.error('Erreur chargement stats:', stats.error);
+                        return;
+                    }
+                    
+                    // Calculer la capacité totale
+                    const totalCapacity = data.classes.reduce((sum, cls) => sum + (parseInt(cls.capacity) || 0), 0);
+                    const totalEleves = stats.effectifs.total;
+                    
+                    // Construire la ligne HTML
+                    let totalsHTML = '<td style="color:#64748b;text-align:right;padding:12px 8px;">TOTAUX:</td>';
+                    
+                    // Capacité : élèves/places
+                    const capColor = totalEleves === totalCapacity ? '#22c55e' : (totalEleves > totalCapacity ? '#ef4444' : '#eab308');
+                    totalsHTML += `<td style="text-align:center;padding:12px 8px;color:${capColor};font-size:15px;font-weight:900;">${totalEleves}/${totalCapacity}</td>`;
+                    
+                    // Pour chaque LV2 : élèves/quota
+                    data.lv2.forEach(key => {
+                        const quota = data.classes.reduce((sum, cls) => sum + (parseInt(cls.quotas[key]) || 0), 0);
+                        const elevesCount = stats.lv2[key] || 0;
+                        
+                        // Couleur : vert si égal, rouge si élèves > quota, jaune sinon
+                        let color = '#94a3b8';
+                        if (quota > 0) {
+                            if (elevesCount === quota) color = '#22c55e';
+                            else if (elevesCount > quota) color = '#ef4444';
+                            else color = '#eab308';
+                        }
+                        
+                        totalsHTML += `<td style="text-align:center;padding:12px 8px;color:${color};font-size:15px;font-weight:900;">${elevesCount}/${quota}</td>`;
+                    });
+                    
+                    // Pour chaque Option : élèves/quota
+                    data.options.forEach(key => {
+                        const quota = data.classes.reduce((sum, cls) => sum + (parseInt(cls.quotas[key]) || 0), 0);
+                        const elevesCount = stats.options[key] || 0;
+                        
+                        // Couleur : vert si égal, rouge si élèves > quota, jaune sinon
+                        let color = '#94a3b8';
+                        if (quota > 0) {
+                            if (elevesCount === quota) color = '#22c55e';
+                            else if (elevesCount > quota) color = '#ef4444';
+                            else color = '#eab308';
+                        }
+                        
+                        totalsHTML += `<td style="text-align:center;padding:12px 8px;color:${color};font-size:15px;font-weight:900;">${elevesCount}/${quota}</td>`;
+                    });
+                    
+                    totalsRow.innerHTML = totalsHTML;
+                },
+                err => {
+                    console.error('Erreur appel v3_getStats:', err);
+                    // Afficher quand même les quotas sans les stats
+                    let totalsHTML = '<td style="color:#64748b;text-align:right;padding:12px 8px;">TOTAUX:</td>';
+                    
+                    const totalCapacity = data.classes.reduce((sum, cls) => sum + (parseInt(cls.capacity) || 0), 0);
+                    totalsHTML += `<td style="text-align:center;padding:12px 8px;color:#94a3b8;font-size:15px;font-weight:900;">?/${totalCapacity}</td>`;
+                    
+                    [...data.lv2, ...data.options].forEach(key => {
+                        const quota = data.classes.reduce((sum, cls) => sum + (parseInt(cls.quotas[key]) || 0), 0);
+                        totalsHTML += `<td style="text-align:center;padding:12px 8px;color:#94a3b8;font-size:15px;font-weight:900;">?/${quota}</td>`;
+                    });
+                    
+                    totalsRow.innerHTML = totalsHTML;
+                }
+            );
         }
 
         function updateClassData(index, field, value) {

@@ -873,3 +873,84 @@ function v3_loadProgress() {
     return { success: false, error: e.message };
   }
 }
+
+/**
+ * Compte les élèves déjà placés dans les onglets TEST par LV2/Option
+ * @returns {Object} {success, counts: {capacity: X, ESP: Y, ITA: Z, ...}}
+ */
+function v3_getPlacedStudentsCounts() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheets = ss.getSheets();
+    
+    // Filtrer les onglets TEST
+    const testSheets = sheets.filter(s => {
+      const name = s.getName();
+      return name.indexOf('°TEST') > -1 || /TEST\d+$/.test(name);
+    });
+    
+    if (testSheets.length === 0) {
+      return {
+        success: true,
+        counts: { capacity: 0 }
+      };
+    }
+    
+    // Récupérer la config pour savoir quelles colonnes chercher
+    const config = getConfig();
+    const lv2Options = config.LV2_OPTIONS || [];
+    const niveau = config.NIVEAU || "5e";
+    const niveauKey = niveau.toLowerCase().replace('°', 'e');
+    const optionsArray = (config.OPTIONS && config.OPTIONS[niveauKey]) || [];
+    
+    // Initialiser les compteurs
+    const counts = { capacity: 0 };
+    lv2Options.forEach(lv2 => counts[lv2] = 0);
+    optionsArray.forEach(opt => counts[opt] = 0);
+    
+    // Parcourir chaque onglet TEST
+    testSheets.forEach(sheet => {
+      const data = sheet.getDataRange().getValues();
+      if (data.length <= 1) return; // Pas de données
+      
+      const headers = data[0];
+      const rows = data.slice(1);
+      
+      // Trouver les indices des colonnes LV2 et Options
+      const lv2Index = headers.indexOf('LV2');
+      const optIndex = headers.indexOf('OPT');
+      
+      // Compter les élèves (lignes non vides)
+      rows.forEach(row => {
+        if (row[0]) { // Si la première colonne n'est pas vide (ID ou NOM)
+          counts.capacity++;
+          
+          // Compter par LV2
+          if (lv2Index !== -1 && row[lv2Index]) {
+            const lv2Value = String(row[lv2Index]).trim().toUpperCase();
+            if (counts[lv2Value] !== undefined) {
+              counts[lv2Value]++;
+            }
+          }
+          
+          // Compter par Option
+          if (optIndex !== -1 && row[optIndex]) {
+            const optValue = String(row[optIndex]).trim().toUpperCase();
+            if (counts[optValue] !== undefined) {
+              counts[optValue]++;
+            }
+          }
+        }
+      });
+    });
+    
+    return {
+      success: true,
+      counts: counts
+    };
+    
+  } catch (e) {
+    Logger.log(`Erreur v3_getPlacedStudentsCounts: ${e.message}`);
+    return { success: false, error: e.message };
+  }
+}
